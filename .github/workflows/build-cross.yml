@@ -1,0 +1,52 @@
+name: Build (Cross-platform)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    strategy:
+      matrix:
+        target:
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build (${{ matrix.target }})
+        run: cargo build --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vocab-app-macos-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/vocab-app
+          retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies (egui)
+        run: sudo apt-get update -y && sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+      - name: Build release
+        run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vocab-app-linux-x64
+          path: target/release/vocab-app
+          retention-days: 30
+      - name: Smoke test
+        run: |
+          file target/release/vocab-app
+          ls -lh target/release/vocab-app

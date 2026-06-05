@@ -1,0 +1,45 @@
+name: Build (Android)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - aarch64-linux-android
+          - armv7-linux-androideabi
+          - x86_64-linux-android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build .so
+        run: cargo ndk -t ${{ matrix.target }} -o target/ndk build --release
+
+      - name: Upload .so
+        uses: actions/upload-artifact@v4
+        with:
+          name: vocab-app-android-${{ matrix.target }}
+          path: target/ndk/${{ matrix.target }}/libvocab_app.so
+          retention-days: 30

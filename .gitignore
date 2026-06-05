@@ -1,0 +1,4 @@
+/target
+*.swp
+saved_session.json
+vocab_app.db
