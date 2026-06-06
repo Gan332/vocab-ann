@@ -404,7 +404,7 @@ impl eframe::App for VocabApp {
             Window::new("Paused").id("pw".into())
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
                 .collapsible(false).resizable(false).title_bar(false)
-                .frame(Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(20.0)))
+                .frame(Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(20.0)))
                 .open(&mut keep_paused)
                 .show(ctx, |ui| {
                     ui.vertical_centered(|ui| {
@@ -413,10 +413,10 @@ impl eframe::App for VocabApp {
                         ui.add_space(16.0);
                         ui.horizontal(|ui| {
                             if ui.add_sized(Vec2::new(100.0, 36.0),
-                                Button::new("Continue").fill(self.theme.primary).text_color(Color32::WHITE).rounding(CornerRadius::same(8.0))).clicked()
+                                Button::new("Continue").fill(self.theme.primary).text_color(Color32::WHITE).corner_radius(CornerRadius::same(8.0))).clicked()
                             { self.cont(); keep_paused = false; }
                             if ui.add_sized(Vec2::new(100.0, 36.0),
-                                Button::new("Save & Quit").rounding(CornerRadius::same(8.0))).clicked()
+                                Button::new("Save & Quit").corner_radius(CornerRadius::same(8.0))).clicked()
                             { self.save_quit(); keep_paused = false; }
                         });
                     });
@@ -448,10 +448,10 @@ impl VocabApp {
                     ui.label(RichText::new(&self.timer).size(14.0).monospace()
                         .color(self.theme.text_primary));
                     if ui.add(Button::new(" Exit ").fill(self.theme.wrong_light)
-                        .text_color(self.theme.wrong).rounding(CornerRadius::same(6.0))).clicked()
+                        .text_color(self.theme.wrong).corner_radius(CornerRadius::same(6.0))).clicked()
                     { self.quit_confirm = true; }
                     if ui.add(Button::new(" Pause ").fill(self.theme.surface)
-                        .rounding(CornerRadius::same(6.0))).clicked()
+                        .corner_radius(CornerRadius::same(6.0))).clicked()
                     { self.pause(); }
                 });
             });
@@ -469,8 +469,8 @@ impl VocabApp {
         };
         let card = match card { Some(c) => c, None => return };
 
-        let card_rect = Frame::none().fill(self.theme.card_bg)
-            .rounding(CornerRadius::same(20.0)).stroke(Stroke::new(1.0, self.theme.border))
+        let card_rect = Frame::NONE.fill(self.theme.card_bg)
+            .corner_radius(CornerRadius::same(20.0)).stroke(Stroke::new(1.0, self.theme.border))
             .inner_margin(Margin::symmetric(24.0, 24.0))
             .show(ui, |ui| {
                 ui.vertical_centered(|ui| {
@@ -498,12 +498,12 @@ impl VocabApp {
             ui.horizontal(|ui| {
                 if ui.add_sized(Vec2::new(ui.available_width() / 2.0 - 4.0, 48.0),
                     Button::new("Forgot").fill(self.theme.wrong_light)
-                        .text_color(self.theme.wrong).rounding(CornerRadius::same(12.0)))
+                        .text_color(self.theme.wrong).corner_radius(CornerRadius::same(12.0)))
                     .clicked()
                 { self.answer_card(false); }
                 if ui.add_sized(Vec2::new(ui.available_width() / 2.0 - 4.0, 48.0),
                     Button::new("Remembered").fill(self.theme.correct_light)
-                        .text_color(self.theme.correct).rounding(CornerRadius::same(12.0)))
+                        .text_color(self.theme.correct).corner_radius(CornerRadius::same(12.0)))
                     .clicked()
                 { self.answer_card(true); }
             });
@@ -524,7 +524,7 @@ impl VocabApp {
         {
             let q = self.quiz.as_ref().unwrap();
 
-            Frame::none().fill(theme.card_bg).rounding(CornerRadius::same(20.0))
+            Frame::NONE.fill(theme.card_bg).corner_radius(CornerRadius::same(20.0))
                 .stroke(Stroke::new(1.0, theme.border))
                 .inner_margin(Margin::symmetric(24.0, 24.0))
                 .show(ui, |ui| {
@@ -555,7 +555,7 @@ impl VocabApp {
                 if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
                     Button::new(RichText::new(&opt.text).color(tc))
                         .fill(bg).stroke(Stroke::new(2.0, bc))
-                        .rounding(CornerRadius::same(12.0)))
+                        .corner_radius(CornerRadius::same(12.0)))
                     .clicked() && !q.answered
                 { clicked = Some(i); }
             }
@@ -563,7 +563,7 @@ impl VocabApp {
             if q.answered {
                 ui.add_space(8.0);
                 let fb_bg = if q.correct { theme.correct_light } else { theme.wrong_light };
-                Frame::none().fill(fb_bg).rounding(CornerRadius::same(10.0))
+                Frame::NONE.fill(fb_bg).corner_radius(CornerRadius::same(10.0))
                     .inner_margin(Margin::symmetric(12.0, 12.0))
                     .show(ui, |ui| {
                         let fb = if q.correct { theme.correct } else { theme.wrong };
@@ -580,7 +580,7 @@ impl VocabApp {
                     ui.add_space(12.0);
                     if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
                         Button::new("Next").fill(theme.primary)
-                            .text_color(Color32::WHITE).rounding(CornerRadius::same(12.0)))
+                            .text_color(Color32::WHITE).corner_radius(CornerRadius::same(12.0)))
                         .clicked()
                     {
                         if q.correct { next_clicked = true; }
@@ -588,7 +588,7 @@ impl VocabApp {
                     // For wrong answers, still show next button
                     if !q.correct {
                         if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
-                            Button::new("Next ->").rounding(CornerRadius::same(12.0)))
+                            Button::new("Next ->").corner_radius(CornerRadius::same(12.0)))
                             .clicked()
                         { next_clicked = true; }
                     }
@@ -629,7 +629,7 @@ impl VocabApp {
                 ui.horizontal(|ui| {
                     if ui.add_sized(Vec2::new(120.0, 40.0),
                         Button::new("Again").fill(self.theme.primary)
-                            .text_color(Color32::WHITE).rounding(CornerRadius::same(8.0)))
+                            .text_color(Color32::WHITE).corner_radius(CornerRadius::same(8.0)))
                         .clicked()
                     {
                         self.result = None;
@@ -638,7 +638,7 @@ impl VocabApp {
                         else { self.start_learn(&bname, mode, self.dir.clone()); }
                     }
                     if ui.add_sized(Vec2::new(120.0, 40.0),
-                        Button::new("Back").rounding(CornerRadius::same(8.0)))
+                        Button::new("Back").corner_radius(CornerRadius::same(8.0)))
                         .clicked()
                     { self.result = None; }
                 });
@@ -658,7 +658,7 @@ impl VocabApp {
                     let b = Button::new(RichText::new(*label).size(14.0))
                         .fill(if sel { self.theme.primary } else { Color32::TRANSPARENT })
                         .text_color(if sel { Color32::WHITE } else { self.theme.text_primary })
-                        .rounding(CornerRadius::same(8.0))
+                        .corner_radius(CornerRadius::same(8.0))
                         .min_size(Vec2::new(ui.available_width() / 3.0 - 6.0, 36.0));
                     if ui.add(b).clicked() { self.current_tab = tab.clone(); }
                 }
@@ -683,7 +683,7 @@ impl VocabApp {
         if self.starred > 0 || self.wrong > 0 {
             ui.horizontal(|ui| {
                 if self.starred > 0 {
-                    let r = Frame::none().fill(self.theme.star_light).rounding(CornerRadius::same(12.0))
+                    let r = Frame::NONE.fill(self.theme.star_light).corner_radius(CornerRadius::same(12.0))
                         .inner_margin(Margin::symmetric(12.0, 12.0)).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
                                 ui.label("Starred"); ui.label(RichText::new(self.starred.to_string())
@@ -693,7 +693,7 @@ impl VocabApp {
                     if r.clicked() { self.start_starred(); }
                 }
                 if self.wrong > 0 {
-                    let r = Frame::none().fill(self.theme.wrong_light).rounding(CornerRadius::same(12.0))
+                    let r = Frame::NONE.fill(self.theme.wrong_light).corner_radius(CornerRadius::same(12.0))
                         .inner_margin(Margin::symmetric(12.0, 12.0)).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
                                 ui.label("Wrong"); ui.label(RichText::new(self.wrong.to_string())
@@ -710,7 +710,7 @@ impl VocabApp {
         ui.add_space(8.0);
 
         // Import button
-        Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(12.0))
+        Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(12.0))
             .stroke(Stroke::new(2.0, self.theme.border)).show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 if ui.add_sized(Vec2::new(ui.available_width(), 48.0),
@@ -725,7 +725,7 @@ impl VocabApp {
         } else {
             for bank in &self.banks {
                 let n = bank.name.clone();
-                let resp = Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(12.0))
+                let resp = Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(12.0))
                     .stroke(Stroke::new(1.0, self.theme.border))
                     .inner_margin(Margin::symmetric(12.0, 12.0)).show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -738,12 +738,12 @@ impl VocabApp {
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 if ui.add_sized(Vec2::new(32.0, 28.0),
                                     Button::new("X").fill(self.theme.wrong_light)
-                                        .text_color(self.theme.wrong).rounding(CornerRadius::same(6.0)))
+                                        .text_color(self.theme.wrong).corner_radius(CornerRadius::same(6.0)))
                                     .clicked()
                                 { self.del_bank = Some(n.clone()); }
                                 if ui.add_sized(Vec2::new(56.0, 28.0),
                                     Button::new("Study").fill(self.theme.primary)
-                                        .text_color(Color32::WHITE).rounding(CornerRadius::same(6.0)))
+                                        .text_color(Color32::WHITE).corner_radius(CornerRadius::same(6.0)))
                                     .clicked()
                                 { self.sel_bank = n; self.current_tab = Tab::Learn; }
                             });
@@ -773,7 +773,7 @@ impl VocabApp {
         if self.starred > 0 || self.wrong > 0 {
             ui.horizontal(|ui| {
                 if self.starred > 0 {
-                    let r = Frame::none().fill(self.theme.star_light).rounding(CornerRadius::same(12.0))
+                    let r = Frame::NONE.fill(self.theme.star_light).corner_radius(CornerRadius::same(12.0))
                         .inner_margin(Margin::symmetric(12.0, 12.0)).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
                                 ui.label("Starred Review");
@@ -784,7 +784,7 @@ impl VocabApp {
                     if r.clicked() { self.start_starred(); }
                 }
                 if self.wrong > 0 {
-                    let r = Frame::none().fill(self.theme.wrong_light).rounding(CornerRadius::same(12.0))
+                    let r = Frame::NONE.fill(self.theme.wrong_light).corner_radius(CornerRadius::same(12.0))
                         .inner_margin(Margin::symmetric(12.0, 12.0)).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
                                 ui.label("Wrong Review");
@@ -800,7 +800,7 @@ impl VocabApp {
 
         // Resume
         if self.has_saved() {
-            Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(12.0))
+            Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(12.0))
                 .stroke(Stroke::new(1.0, self.theme.border))
                 .inner_margin(Margin::symmetric(16.0, 16.0)).show(ui, |ui| {
                     ui.vertical_centered(|ui| {
@@ -812,11 +812,11 @@ impl VocabApp {
                         ui.horizontal(|ui| {
                             if ui.add_sized(Vec2::new(80.0, 32.0),
                                 Button::new("Resume").fill(self.theme.primary)
-                                    .text_color(Color32::WHITE).rounding(CornerRadius::same(8.0)))
+                                    .text_color(Color32::WHITE).corner_radius(CornerRadius::same(8.0)))
                                 .clicked()
                             { self.resume(); }
                             if ui.add_sized(Vec2::new(80.0, 32.0),
-                                Button::new("Discard").rounding(CornerRadius::same(8.0)))
+                                Button::new("Discard").corner_radius(CornerRadius::same(8.0)))
                                 .clicked()
                             { self.saved = None; clear_saved(); }
                         });
@@ -826,7 +826,7 @@ impl VocabApp {
         }
 
         // Setup
-        Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(16.0))
+        Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(16.0))
             .inner_margin(Margin::symmetric(20.0, 20.0)).show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(RichText::new("Study Setup").size(18.0).strong()
@@ -863,7 +863,7 @@ impl VocabApp {
 
                         if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
                             Button::new("Start Studying").fill(self.theme.primary)
-                                .text_color(Color32::WHITE).rounding(CornerRadius::same(10.0)))
+                                .text_color(Color32::WHITE).corner_radius(CornerRadius::same(10.0)))
                             .clicked()
                         { self.start_learn(&self.sel_bank, self.mode.clone(), self.dir.clone()); }
                     }
@@ -887,11 +887,11 @@ impl VocabApp {
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
-            let _ = Frame::none().fill(self.theme.star_light).rounding(CornerRadius::same(12.0))
+            let _ = Frame::NONE.fill(self.theme.star_light).corner_radius(CornerRadius::same(12.0))
                 .inner_margin(Margin::symmetric(12.0, 10.0)).show(ui, |ui| {
                     ui.vertical_centered(|ui| { ui.label("Starred"); ui.label(RichText::new(self.starred.to_string()).size(18.0).strong().color(self.theme.star)); });
                 });
-            let _ = Frame::none().fill(self.theme.wrong_light).rounding(CornerRadius::same(12.0))
+            let _ = Frame::NONE.fill(self.theme.wrong_light).corner_radius(CornerRadius::same(12.0))
                 .inner_margin(Margin::symmetric(12.0, 10.0)).show(ui, |ui| {
                     ui.vertical_centered(|ui| { ui.label("Wrong"); ui.label(RichText::new(self.wrong.to_string()).size(18.0).strong().color(self.theme.wrong)); });
                 });
@@ -900,7 +900,7 @@ impl VocabApp {
         if self.wrong > 0 {
             ui.add_space(8.0);
             if ui.add(Button::new("Clear Wrong").fill(self.theme.wrong_light)
-                .text_color(self.theme.wrong).rounding(CornerRadius::same(8.0)))
+                .text_color(self.theme.wrong).corner_radius(CornerRadius::same(8.0)))
                 .clicked()
             { self.clear_wrong(); }
         }
@@ -913,7 +913,7 @@ impl VocabApp {
             ui.vertical_centered(|ui| { ui.add_space(40.0); ui.label("No sessions yet"); });
         } else {
             for ses in &self.sessions {
-                Frame::none().fill(self.theme.card_bg).rounding(CornerRadius::same(10.0))
+                Frame::NONE.fill(self.theme.card_bg).corner_radius(CornerRadius::same(10.0))
                     .stroke(Stroke::new(1.0, self.theme.border))
                     .inner_margin(Margin::symmetric(12.0, 10.0)).show(ui, |ui| {
                         ui.horizontal(|ui| {
@@ -942,7 +942,7 @@ impl VocabApp {
 // ============================================================================
 
 fn stat_card(ui: &mut Ui, label: &str, value: &str, c: &ThemeColors) {
-    Frame::none().fill(c.card_bg).rounding(CornerRadius::same(10.0))
+    Frame::NONE.fill(c.card_bg).corner_radius(CornerRadius::same(10.0))
         .stroke(Stroke::new(1.0, c.border))
         .inner_margin(Margin::symmetric(8.0, 10.0)).show(ui, |ui| {
             ui.vertical_centered(|ui| {
@@ -983,7 +983,7 @@ impl VocabApp {
                 // Search
                 ui.horizontal(|ui| {
                     let resp = ui.add_sized(Vec2::new(ui.available_width() - 60.0, 0.0),
-                        TextEdit::singleline(&mut self.search).hint_text("Search..."));
+                        TextEdit::singleline(&mut self.search).placeholder_text("Search..."));
                     if resp.changed() { self.search_words(&self.search); }
                     if ui.button("Clear").clicked() {
                         self.search.clear(); self.search_prev.clear();
@@ -1041,7 +1041,7 @@ impl VocabApp {
                 ui.add_space(8.0);
                 if ui.add_sized(Vec2::new(ui.available_width(), 36.0),
                     Button::new("Import").fill(self.theme.primary)
-                        .text_color(Color32::WHITE).rounding(CornerRadius::same(8.0)))
+                        .text_color(Color32::WHITE).corner_radius(CornerRadius::same(8.0)))
                     .clicked()
                 {
                     let text = self.import_txt.clone();
@@ -1065,16 +1065,16 @@ impl VocabApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Word:").strong();
-                    ui.text_edit_singleline(&mut self.add_w);
+                    ui.add(TextEdit::singleline(&mut self.add_w));
                 });
                 ui.horizontal(|ui| {
                     ui.label("Def:").strong();
-                    ui.text_edit_singleline(&mut self.add_d);
+                    ui.add(TextEdit::singleline(&mut self.add_d));
                 });
                 ui.add_space(8.0);
                 if ui.add_sized(Vec2::new(ui.available_width(), 32.0),
                     Button::new("OK").fill(self.theme.primary)
-                        .text_color(Color32::WHITE).rounding(CornerRadius::same(8.0)))
+                        .text_color(Color32::WHITE).corner_radius(CornerRadius::same(8.0)))
                     .clicked()
                 {
                     let w = self.add_w.trim().to_string();
@@ -1178,7 +1178,7 @@ impl VocabApp {
                 .open(&mut confirm)
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Name:"); ui.text_edit_singleline(&mut self.rename_to);
+                        ui.label("Name:"); ui.add(TextEdit::singleline(&mut self.rename_to));
                     });
                     ui.horizontal(|ui| {
                         if ui.button("Rename").clicked() {

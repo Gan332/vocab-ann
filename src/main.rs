@@ -16,7 +16,7 @@ fn main() -> Result<(), eframe::Error> {
     };
     eframe::run_native("Vocab App", options, Box::new(|_cc| {
         let db_path = get_db_path();
-        Ok(Box::new(VocabApp::new(&db_path)))
+        Box::new(VocabApp::new(&db_path))
     }))
 }
 
