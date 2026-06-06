@@ -1,4 +1,4 @@
-﻿use eframe::egui::*;
+use eframe::egui::*;
 use crate::models::Direction;
 use crate::models::{
     AppConfig, Bank, Card, LearnMode, QuizOption, Session, SessionResult,

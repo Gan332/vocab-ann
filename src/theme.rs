@@ -1,4 +1,4 @@
-﻿use egui::Color32;
+use egui::Color32;
 
 pub struct VocabColors;
 
