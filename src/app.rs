@@ -1,6 +1,7 @@
 ﻿use eframe::egui::{self, *};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use rand::seq::SliceRandom;
+use rand::Rng;
 use serde::{Serialize, Deserialize};
 use crate::models::*;
 use crate::theme::{VocabColors, ThemeColors};
@@ -51,6 +52,8 @@ pub struct VocabApp {
     add_w: String, add_d: String, import_txt: String,
     pub rename_bank: Option<String>, rename_to: String,
     config: AppConfig, theme: ThemeColors,
+    frame_time: f64,
+    style_initialized: bool,
 }
 
 impl VocabApp {
@@ -74,6 +77,8 @@ impl VocabApp {
             add_w: String::new(), add_d: String::new(), import_txt: String::new(),
             rename_bank: None, rename_to: String::new(),
             config, theme,
+            frame_time: 0.0,
+            style_initialized: false,
         }
     }
 
@@ -95,16 +100,11 @@ impl VocabApp {
     fn import(&mut self, name: &str, text: &str) {
         let parsed = parser::parse_txt(text);
         if parsed.is_empty() { self.error = Some("No valid entries found".into()); return; }
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-        self.db.upsert_bank(&Bank {
-            name: name.into(), count: parsed.len() as i32, created_at: now, updated_at: now,
-        });
-        self.db.delete_words_by_bank(name);
         let ws: Vec<Word> = parsed.iter().map(|p| Word {
             id: 0, bank_name: name.into(), word: p.word.clone(),
             definition: p.definition.clone(), is_starred: false, wrong_count: 0,
         }).collect();
-        self.db.insert_words(&ws);
+        self.db.import_words(name, &ws);
         self.refresh_banks();
         if self.sel_bank.is_empty() { self.sel_bank = name.into(); }
     }
@@ -142,10 +142,7 @@ impl VocabApp {
     }
 
     fn recount(&mut self, name: &str) {
-        let c = self.db.get_words_by_bank(name).len() as i32;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-        let created_at = self.db.get_bank(name).map(|b| b.created_at).unwrap_or(now);
-        self.db.upsert_bank(&Bank { name: name.into(), count: c, created_at, updated_at: now });
+        self.db.recount_bank(name);
         self.refresh_banks();
     }
 
@@ -256,25 +253,33 @@ impl VocabApp {
     }
 
     fn inc_wrong(&mut self, id: i64) {
-        if let Some(mut w) = self.db.get_word_by_id(id) {
-            w.wrong_count += 1; self.db.update_word(&w);
-            self.wrong = self.db.get_wrong_words_count();
-        }
+        self.db.inc_wrong_count(id);
+        self.wrong = self.db.get_wrong_words_count();
     }
 
     fn gen_quiz(&mut self) {
         let l = match self.learn { Some(ref x) => x, None => return };
         if !l.active { return; }
         let card = match l.cards.get(l.index) { Some(c) => c, None => return };
-        let mut dst: Vec<&str> = l.cards.iter()
-            .enumerate().filter(|(i,_)| *i != l.index)
-            .map(|(_,c)| c.back.as_str()).collect();
-        dst.sort(); dst.dedup(); dst.shuffle(&mut rand::thread_rng());
-        let opts: Vec<QuizOption> = dst.into_iter().take(3)
-            .map(|t| QuizOption { text: t.to_string(), is_correct: false }).collect();
-        let mut opts = opts;
+        // Reservoir sample 3 distinct distractors with unique back text
+        let mut rng = rand::thread_rng();
+        let mut distractors: Vec<usize> = Vec::with_capacity(3);
+        let mut seen = 0usize;
+        for i in 0..l.cards.len() {
+            if i == l.index || l.cards[i].back == card.back { continue; }
+            if distractors.iter().any(|&idx| l.cards[idx].back == l.cards[i].back) { continue; }
+            seen += 1;
+            if distractors.len() < 3 {
+                distractors.push(i);
+            } else {
+                let j = rng.gen_range(0..seen);
+                if j < 3 { distractors[j] = i; }
+            }
+        }
+        let mut opts: Vec<QuizOption> = distractors.iter()
+            .map(|&i| QuizOption { text: l.cards[i].back.clone(), is_correct: false }).collect();
         opts.push(QuizOption { text: card.back.clone(), is_correct: true });
-        opts.shuffle(&mut rand::thread_rng());
+        opts.shuffle(&mut rng);
         self.quiz = Some(QuizState {
             question: card.front.clone(), options: opts,
             selected: -1, answered: false, correct: false,
@@ -338,9 +343,7 @@ impl VocabApp {
     }
 
     fn clear_wrong(&mut self) {
-        for w in self.db.get_all_wrong_words() {
-            let mut x = w; x.wrong_count = 0; self.db.update_word(&x);
-        }
+        self.db.clear_all_wrong();
         self.wrong = 0;
     }
 }
@@ -352,27 +355,39 @@ impl VocabApp {
 
 impl eframe::App for VocabApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        // Timer update
+        // Cache current time once per frame (avoids redundant syscalls)
+        self.frame_time = self.now();
+
+        // Set egui style once (dark_mode doesn't change at runtime)
+        if !self.style_initialized {
+            let mut visuals = ctx.style().visuals.clone();
+            visuals.dark_mode = self.config.dark_mode;
+            if self.config.dark_mode {
+                visuals.panel_fill = self.theme.bg;
+                visuals.window_fill = self.theme.card_bg;
+            }
+            ctx.set_visuals(visuals);
+            self.style_initialized = true;
+        }
+
+        // Timer update using cached time
         if let Some(ref l) = self.learn {
             if l.active {
-                let e = (self.now() - l.start_time) as i64;
+                let e = (self.frame_time - l.start_time) as i64;
                 let h = e / 3600; let m = (e % 3600) / 60; let s = e % 60;
                 self.timer = if h > 0 { format!("{}:{:02}:{:02}", h, m, s) } else { format!("{:02}:{:02}", m, s) };
             }
         }
 
-        // Style
-        let mut st = (*ctx.style()).clone();
-        st.visuals.dark_mode = self.config.dark_mode;
-        if self.config.dark_mode {
-            st.visuals.panel_fill = self.theme.bg;
-            st.visuals.window_fill = self.theme.card_bg;
-        }
-        ctx.set_style(st);
-
         let is_active = self.learn.as_ref().map_or(false, |l| l.active);
         let has_paused = self.paused.is_some();
         let has_result = self.result.is_some();
+
+        // Tick at most twice a second while a session is active so the timer
+        // stays current; otherwise stay idle and let input drive repaints.
+        if is_active {
+            ctx.request_repaint_after(Duration::from_millis(500));
+        }
 
         if is_active {
             self.render_learn_active(ctx);
@@ -414,7 +429,10 @@ impl eframe::App for VocabApp {
             self.show_delete_confirm(ctx);
             self.show_quit_confirm(ctx);
             self.show_rename_dialog(ctx);
-        }    fn render_learn_active(&mut self, ctx: &Context) {
+        }
+    }
+
+    fn render_learn_active(&mut self, ctx: &Context) {
         TopBottomPanel::top("hdr").show(ctx, |ui| {
             let l = self.learn.as_ref().unwrap();
             ui.horizontal(|ui| {
@@ -488,85 +506,94 @@ impl eframe::App for VocabApp {
 
     fn quiz_ui(&mut self, ui: &mut Ui) {
         if self.quiz.is_none() { self.gen_quiz(); return; }
-        let (total, next_avail) = {
+        let next_avail = {
             let l = self.learn.as_ref().unwrap();
-            (l.total_cards, l.index + 1 < l.total_cards)
+            l.index + 1 < l.total_cards
         };
-        let q = self.quiz.as_ref().unwrap().clone();
 
-        Frame::none().fill(self.theme.card_bg).rounding(Rounding::same(20.0))
-            .stroke(Stroke::new(1.0, self.theme.border))
-            .inner_margin(Margin::symmetric(24.0, 24.0))
-            .show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(8.0);
-                    ui.label(RichText::new("Choose the correct answer")
-                        .size(13.0).color(self.theme.text_secondary));
-                    ui.add_space(8.0);
-                    ui.label(RichText::new(&q.question).size(24.0).strong()
-                        .color(self.theme.text_primary));
-                    ui.add_space(8.0);
-                });
-            });
-        ui.add_space(16.0);
+        let mut clicked: Option<usize> = None;
+        let mut next_clicked = false;
+        let theme = self.theme;
 
-        for (i, opt) in q.options.iter().enumerate() {
-            let sel = q.selected == i as i32;
-            let cor = opt.is_correct;
-            let bg = if q.answered && cor { self.theme.correct_light }
-                else if q.answered && sel && !cor { self.theme.wrong_light }
-                else { self.theme.card_bg };
-            let tc = if q.answered && cor { self.theme.correct }
-                else if q.answered && sel && !cor { self.theme.wrong }
-                else { self.theme.text_primary };
-            let bc = if q.answered && cor { self.theme.correct }
-                else if q.answered && sel && !cor { self.theme.wrong }
-                else { self.theme.border };
-            if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
-                Button::new(RichText::new(&opt.text).color(tc))
-                    .fill(bg).stroke(Stroke::new(2.0, bc))
-                    .rounding(Rounding::same(12.0)))
-                .clicked() && !q.answered
-            { self.answer_quiz(i); }
-        }
+        {
+            let q = self.quiz.as_ref().unwrap();
 
-        if q.answered {
-            ui.add_space(8.0);
-            let fb_bg = if q.correct { self.theme.correct_light } else { self.theme.wrong_light };
-            Frame::none().fill(fb_bg).rounding(Rounding::same(10.0))
-                .inner_margin(Margin::symmetric(12.0, 12.0))
+            Frame::none().fill(theme.card_bg).rounding(Rounding::same(20.0))
+                .stroke(Stroke::new(1.0, theme.border))
+                .inner_margin(Margin::symmetric(24.0, 24.0))
                 .show(ui, |ui| {
-                    let fb = if q.correct { self.theme.correct } else { self.theme.wrong };
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(if q.correct { "Correct!" } else { "Wrong!" }).color(fb).strong());
-                        if !q.correct {
-                            if let Some(ans) = q.options.iter().find(|o| o.is_correct) {
-                                ui.label(RichText::new(format!("Answer: {}", ans.text)).size(13.0).color(fb));
-                            }
-                        }
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(8.0);
+                        ui.label(RichText::new("Choose the correct answer")
+                            .size(13.0).color(theme.text_secondary));
+                        ui.add_space(8.0);
+                        ui.label(RichText::new(&q.question).size(24.0).strong()
+                            .color(theme.text_primary));
+                        ui.add_space(8.0);
                     });
                 });
-            if next_avail {
-                ui.add_space(12.0);
+            ui.add_space(16.0);
+
+            for (i, opt) in q.options.iter().enumerate() {
+                let sel = q.selected == i as i32;
+                let cor = opt.is_correct;
+                let bg = if q.answered && cor { theme.correct_light }
+                    else if q.answered && sel && !cor { theme.wrong_light }
+                    else { theme.card_bg };
+                let tc = if q.answered && cor { theme.correct }
+                    else if q.answered && sel && !cor { theme.wrong }
+                    else { theme.text_primary };
+                let bc = if q.answered && cor { theme.correct }
+                    else if q.answered && sel && !cor { theme.wrong }
+                    else { theme.border };
                 if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
-                    Button::new("Next").fill(self.theme.primary)
-                        .text_color(Color32::WHITE).rounding(Rounding::same(12.0)))
-                    .clicked()
-                {
-                    if q.correct { self.next_quiz(); }
-                }
-                // For wrong answers, still show next button
-                if !q.correct {
+                    Button::new(RichText::new(&opt.text).color(tc))
+                        .fill(bg).stroke(Stroke::new(2.0, bc))
+                        .rounding(Rounding::same(12.0)))
+                    .clicked() && !q.answered
+                { clicked = Some(i); }
+            }
+
+            if q.answered {
+                ui.add_space(8.0);
+                let fb_bg = if q.correct { theme.correct_light } else { theme.wrong_light };
+                Frame::none().fill(fb_bg).rounding(Rounding::same(10.0))
+                    .inner_margin(Margin::symmetric(12.0, 12.0))
+                    .show(ui, |ui| {
+                        let fb = if q.correct { theme.correct } else { theme.wrong };
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(if q.correct { "Correct!" } else { "Wrong!" }).color(fb).strong());
+                            if !q.correct {
+                                if let Some(ans) = q.options.iter().find(|o| o.is_correct) {
+                                    ui.label(RichText::new(format!("Answer: {}", ans.text)).size(13.0).color(fb));
+                                }
+                            }
+                        });
+                    });
+                if next_avail {
+                    ui.add_space(12.0);
                     if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
-                        Button::new("Next ->").rounding(Rounding::same(12.0)))
+                        Button::new("Next").fill(theme.primary)
+                            .text_color(Color32::WHITE).rounding(Rounding::same(12.0)))
                         .clicked()
-                    { self.next_quiz(); }
+                    {
+                        if q.correct { next_clicked = true; }
+                    }
+                    // For wrong answers, still show next button
+                    if !q.correct {
+                        if ui.add_sized(Vec2::new(ui.available_width(), 44.0),
+                            Button::new("Next ->").rounding(Rounding::same(12.0)))
+                            .clicked()
+                        { next_clicked = true; }
+                    }
                 }
             }
         }
+
+        if let Some(i) = clicked { self.answer_quiz(i); }
+        if next_clicked { self.next_quiz(); }
     }
 
-    }
     fn render_result(&mut self, ctx: &Context) {
         CentralPanel::default().show(ctx, |ui| {
             let r = self.result.as_ref().unwrap();
@@ -964,24 +991,33 @@ impl VocabApp {
                 }
                 ui.label(format!("{} words", self.bank_words.len()));
                 ScrollArea::vertical().max_height(350.0).show(ui, |ui| {
-                    for w in self.bank_words.clone() {
+                    let mut star_action: Option<i64> = None;
+                    let mut edit_action: Option<Word> = None;
+                    let mut del_action: Option<i64> = None;
+                    let theme = self.theme;
+                    for w in &self.bank_words {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.label(RichText::new(&w.word).size(14.0).strong()
-                                    .color(self.theme.text_primary));
+                                    .color(theme.text_primary));
                                 ui.label(RichText::new(&w.definition).size(12.0)
-                                    .color(self.theme.text_secondary));
+                                    .color(theme.text_secondary));
                             });
                             if ui.button(if w.is_starred { "Unstar" } else { "Star" })
                                 .clicked()
-                            { self.toggle_star(w.id); self.load_words(&bank_name); }
-                            if ui.button("Edit").clicked() {
-                                self.edit_word = Some(w.clone()); self.show_add = true;
-                                self.add_w = w.word.clone(); self.add_d = w.definition.clone();
-                            }
-                            if ui.button("Del").clicked() { self.del_word = Some(w.id); }
+                            { star_action = Some(w.id); }
+                            if ui.button("Edit").clicked() { edit_action = Some(w.clone()); }
+                            if ui.button("Del").clicked() { del_action = Some(w.id); }
                         });
                     }
+                    if let Some(id) = star_action { self.toggle_star(id); self.load_words(&bank_name); }
+                    if let Some(w) = edit_action {
+                        self.add_w = w.word.clone();
+                        self.add_d = w.definition.clone();
+                        self.edit_word = Some(w);
+                        self.show_add = true;
+                    }
+                    if let Some(id) = del_action { self.del_word = Some(id); }
                 });
             });
         if !open { self.show_wm = false; self.search.clear(); self.search_prev.clear(); }
